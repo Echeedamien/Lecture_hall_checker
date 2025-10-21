@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lecture Hall Availability System</title>
+
+    <!-- ✅ Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+    <style>
+        body { background-color: #f7f9fc; }
+        .card { border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .navbar { margin-bottom: 30px; }
+        .badge { font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+    <!-- 🔹 Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">Lecture Hall Availability System</span>
+            <button id="toggleMode" class="btn btn-outline-light btn-sm ms-auto">
+                <i class="bi bi-moon-fill"></i> Dark Mode
+            </button>
+        </div>
+    </nav>
+
+    <!-- 🔔 Flash messages -->
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="alert alert-info mt-3">
+          {% for message in messages %}
+            <div>{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- 🗂️ Upload Section -->
+    <div class="card p-4 mb-4 border-secondary">
+        <h5 class="mb-3">Upload New Timetable</h5>
+        <form method="POST" enctype="multipart/form-data" action="/upload" class="row g-3">
+            <div class="col-md-8">
+                <input type="file" name="file" accept=".csv" class="form-control" required>
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-secondary w-100">Upload</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="container">
+        <!-- 📈 Analytics Overview -->
+         <div class="card p-4 mb-4 border-info">
+            <h4 class="mb-3 text-primary"><i class="bi bi-graph-up"></i> Timetable Analytics</h4>
+            <div class="row text-center">
+                <div class="col-md-3">
+                    <h5 class="text-info">{{ total_courses }}</h5>
+                    <p class="text-muted">Total Courses</p>
+                </div>
+                <div class="col-md-3">
+                    <h5 class="text-info">{{ total_halls }}</h5>
+                    <p class="text-muted">Total Lecture Halls</p>
+                </div>
+                <div class="col-md-3">
+                    <h5 class="text-success">{{ most_used }}</h5>
+                    <p class="text-muted">Most Used Hall</p>
+                </div>
+                <div class="col-md-3">
+                    <h5 class="text-danger">{{ least_used }}</h5>
+                    <p class="text-muted">Least Used Hall</p>
+                </div>
+            </div>
+         </div>
+
+         <!-- 📊 Chart Display -->
+          <div class="mt-3 text-center">
+            <canvas id="hallChart" height="120"></canvas>
+
+          </div>
+        
+        <!-- 🔍 Search Form -->
+        <div class="card p-4 mb-4">
+            <h4 class="mb-3">Check Hall Availability</h4>
+            <form method="POST" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Day</label>
+                    <select name="day" class="form-select" required>
+                        <option value="">--Select Day--</option>
+                        {% for d in day_options %}
+                        <option value="{{ d }}">{{ d }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Time</label>
+                    <select name="time" class="form-select" required>
+                        <option value="">--Select Time--</option>
+                        {% for t in time_options %}
+                        <option value="{{ t }}">{{ t }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button class="btn btn-primary w-100">Check</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- 📋 Results Section -->
+        {% if day %}
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card border-success mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">
+                            <i class="bi bi-check-circle"></i> Free Halls
+                            <span class="badge bg-success">{{ free_halls|length }}</span>
+                        </h5>
+                        <ul class="list-group list-group-flush">
+                            {% for hall in free_halls %}
+                            <li class="list-group-item">{{ hall }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card border-danger mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title text-danger">
+                            <i class="bi bi-x-circle"></i> Occupied Halls
+                            <span class="badge bg-danger">{{ occupied_halls|length }}</span>
+                        </h5>
+                        <ul class="list-group list-group-flush">
+                            {% for hall in occupied_halls %}
+                            <li class="list-group-item">{{ hall }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            {% if conflicts %}
+            <div class="col-md-4">
+                <div class="card border-warning mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title text-warning">
+                            <i class="bi bi-exclamation-triangle"></i> Conflicting Halls
+                            <span class="badge bg-warning text-dark">{{ conflicts|length }}</span>
+                        </h5>
+                        <ul class="list-group list-group-flush">
+                            {% for c in conflicts %}
+                            <li class="list-group-item">
+                                <strong>{{ c['Lecture Hall'] }}</strong><br>
+                                <small>{{ c['Day'] }} ({{ c['Time'] }})</small><br>
+                                <small>Courses: {{ c['Course Code']|join(', ') }}</small>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <footer class="text-center text-muted py-3 mt-4">
+        <hr>
+        <p>Last updated: {{ last_updated }}</p>
+        <p>&copy; 2025 Lecture Hall Availability System — Developed by Echezona Damien Akabuobi 💻</p>
+    </footer>
+
+    <!-- ✅ Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        const toggle = document.getElementById("toggleMode");
+        toggle.addEventListener("click", () => {
+            document.body.classList.toggle("bg-dark");
+            document.body.classList.toggle("text-light");
+        });
+    </script>
+
+<!-- ✅ Chart.js Library -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+async function loadChart() {
+    const response = await fetch("/chart-data");
+    const data = await response.json();
+
+    const ctx = document.getElementById("hallChart").getContext("2d");
+    new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: "Number of Lectures per Hall",
+                data: data.values,
+                backgroundColor: "rgba(54, 162, 235, 0.6)",
+                borderColor: "rgba(54, 162, 235, 1)",
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+                title: { display: true, text: "Lecture Hall Usage Frequency" }
+            },
+            scales: { y: { beginAtZero: true } }
+        }
+    });
+}
+loadChart();
+</script>
+
+</body>
+</html>
